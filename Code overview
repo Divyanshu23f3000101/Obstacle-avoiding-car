@@ -1,0 +1,172 @@
+
+
+#include <Servo.h>
+
+// Servo Object
+Servo myServo;
+
+// Pin Definitions - Ultrasonic Sensor
+const int trigPin = 10;
+const int echoPin = 11;
+
+// Pin Definition - Servo Motor
+const int servoPin = 5;
+
+// Pin Definitions - L298N Motor Driver
+const int IN1 = 4;
+const int IN2 = 6;
+const int IN3 = 7;
+const int IN4 = 8;
+
+// Obstacle Avoidance Thresholds
+const int obstacleThreshold = 25; // Stop distance in centimeters
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize Motor Control Pins
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  // Initialize Ultrasonic Sensor Pins
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  // Attach and Center Servo Motor
+  myServo.attach(servoPin);
+  myServo.write(90);
+  delay(1000);
+
+  Serial.println("System Initialized. Starting Obstacle Avoidance Mode...");
+}
+
+// Function to measure distance in centimeters
+long getDistance() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // pulseIn timeout set to 30000us (approx. 5m max range) to prevent blocking
+  long duration = pulseIn(echoPin, HIGH, 30000);
+  
+  if (duration == 0) {
+    return 400; // Return maximum distance if no pulse received / out of range
+  }
+
+  long distanceCm = duration * 0.034 / 2;
+  return distanceCm;
+}
+
+// Motor Movement Functions
+void moveForward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void moveBackward() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+void turnLeft() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void turnRight() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+void stopCar() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+
+// Scan right side
+int lookRight() {
+  myServo.write(20);
+  delay(500);
+  int distance = getDistance();
+  delay(100);
+  myServo.write(90); // Reset to center
+  return distance;
+}
+
+// Scan left side
+int lookLeft() {
+  myServo.write(160);
+  delay(500);
+  int distance = getDistance();
+  delay(100);
+  myServo.write(90); // Reset to center
+  return distance;
+}
+
+void loop() {
+  long centerDistance = getDistance();
+
+  Serial.print("Center Distance: ");
+  Serial.print(centerDistance);
+  Serial.println(" cm");
+
+  // If obstacle detected within threshold
+  if (centerDistance > 0 && centerDistance < obstacleThreshold) {
+    Serial.println("Obstacle Detected! Stopping...");
+    stopCar();
+    delay(200);
+
+    Serial.println("Backing up...");
+    moveBackward();
+    delay(350);
+    stopCar();
+    delay(200);
+
+    Serial.println("Scanning surroundings...");
+    int distanceRight = lookRight();
+    delay(200);
+    int distanceLeft = lookLeft();
+    delay(200);
+
+    Serial.print("Right: ");
+    Serial.print(distanceRight);
+    Serial.print(" cm | Left: ");
+    Serial.print(distanceLeft);
+    Serial.println(" cm");
+
+    // Decision logic
+    if (distanceRight >= distanceLeft) {
+      Serial.println("Turning Right...");
+      turnRight();
+      delay(450);
+    } else {
+      Serial.println("Turning Left...");
+      turnLeft();
+      delay(450);
+    }
+
+    stopCar();
+    delay(200);
+  } else {
+    // Path is clear
+    moveForward();
+  }
+
+  delay(50);
+}
+
+
